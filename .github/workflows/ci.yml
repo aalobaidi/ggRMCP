@@ -1,0 +1,210 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  GO_VERSION: '1.23'
+  GOLANGCI_LINT_VERSION: 'latest'
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+
+    - name: Install protoc
+      uses: arduino/setup-protoc@v3
+      with:
+        version: '25.x'
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Install dependencies
+      run: |
+        go mod download
+        go mod verify
+
+    - name: Run tests
+      run: make test
+
+    - name: Upload coverage
+      uses: codecov/codecov-action@v5
+      with:
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+
+    - name: Install protoc
+      uses: arduino/setup-protoc@v3
+      with:
+        version: '25.x'
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build binary
+      run: make build
+
+    - name: Build example service
+      run: |
+        cd examples/hello-service
+        make build
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: binaries
+        path: |
+          build/grmcp
+          examples/hello-service/build/hello-service
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+
+    - name: Install protoc
+      uses: arduino/setup-protoc@v3
+      with:
+        version: '25.x'
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Generate protobuf files
+      run: make proto
+
+    - name: Run golangci-lint
+      uses: golangci/golangci-lint-action@v8
+      with:
+        version: ${{ env.GOLANGCI_LINT_VERSION }}
+        args: --timeout=5m
+
+  cross-platform:
+    name: Cross Platform Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm64
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+
+    - name: Build for ${{ matrix.goos }}/${{ matrix.goarch }}
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+      run: |
+        output_name="grmcp-${{ matrix.goos }}-${{ matrix.goarch }}"
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          output_name="${output_name}.exe"
+        fi
+        CGO_ENABLED=0 go build -ldflags="-s -w" -o "build/${output_name}" ./cmd/grmcp
+
+    - name: Upload cross-platform binaries
+      uses: actions/upload-artifact@v4
+      with:
+        name: grmcp-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: build/grmcp-*
+
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+
+    - name: Install protoc
+      uses: arduino/setup-protoc@v3
+      with:
+        version: '25.x'
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: binaries
+        path: .
+
+    - name: Make binaries executable
+      run: |
+        chmod +x build/grmcp
+        chmod +x examples/hello-service/build/hello-service
+
+    - name: Start hello-service
+      run: |
+        ./examples/hello-service/build/hello-service &
+        sleep 2
+
+    - name: Start ggRMCP gateway
+      run: |
+        ./build/grmcp --grpc-host=localhost --grpc-port=50051 --http-port=50052 &
+        sleep 2
+
+    - name: Test MCP endpoint
+      run: |
+        curl -v -X POST http://localhost:50052 \
+          -H "Content-Type: application/json" \
+          -d '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":1}' \
+          | jq .
+
+    - name: Test tool invocation
+      run: |
+        curl -v -X POST http://localhost:50052 \
+          -H "Content-Type: application/json" \
+          -d '{
+            "jsonrpc":"2.0",
+            "method":"tools/call",
+            "params":{
+              "name":"hello_helloservice_sayhello",
+              "arguments":{"name":"GitHub Actions","email":"ci@github.com"}
+            },
+            "id":2
+          }' \
+          | jq .

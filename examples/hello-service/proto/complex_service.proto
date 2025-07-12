@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package com.example.complex;
+
+option go_package = ".";
+
+import "google/protobuf/timestamp.proto";
+
+// Enum for different types of users
+enum UserType {
+  USER_TYPE_UNSPECIFIED = 0;
+  STANDARD = 1;
+  PREMIUM = 2;
+  ADMIN = 3;
+}
+
+// A message representing a user profile
+message UserProfile {
+  string user_id = 1;
+  string display_name = 2;
+  string email = 3;
+  UserType user_type = 4;
+  google.protobuf.Timestamp last_login = 5;
+}
+
+// Request to get a user's profile
+message GetUserProfileRequest {
+  string user_id = 1;
+}
+
+// Response with a user's profile
+message GetUserProfileResponse {
+  UserProfile profile = 1;
+}
+
+// Service for managing user profiles
+service UserProfileService {
+  // Retrieves a user's profile
+  rpc GetUserProfile(GetUserProfileRequest) returns (GetUserProfileResponse) {}
+}
+
+// New message to wrap the map
+message StructuredMetadata {
+  map<string, string> data = 1;
+}
+
+// A message representing a document
+message Document {
+  string document_id = 1;
+  string title = 2;
+  string content = 3;
+  oneof metadata {
+    string simple_summary = 4;
+    StructuredMetadata structured_metadata_wrapper = 5; // Changed this line
+  }
+}
+
+// Request to create a document
+message CreateDocumentRequest {
+  Document document = 1;
+}
+
+// Response after creating a document
+message CreateDocumentResponse {
+  string document_id = 1;
+  bool success = 2;
+}
+
+// Service for managing documents
+service DocumentService {
+  // Creates a new document
+  rpc CreateDocument(CreateDocumentRequest) returns (CreateDocumentResponse) {}
+}
+
+// A message representing a node in a tree structure (recursive)
+message Node {
+  string id = 1;
+  string value = 2;
+  repeated Node children = 3; // Recursive field
+}
+
+// Request to process a recursive node structure
+message ProcessNodeRequest {
+  Node root_node = 1;
+}
+
+// Response after processing a recursive node structure
+message ProcessNodeResponse {
+  string processed_summary = 1;
+  int32 total_nodes = 2;
+}
+
+// Service for processing recursive node structures
+service NodeService {
+  // Processes a tree of nodes
+  rpc ProcessNode(ProcessNodeRequest) returns (ProcessNodeResponse) {}
+}
