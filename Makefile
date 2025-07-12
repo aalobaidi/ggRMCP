@@ -26,15 +26,18 @@ install-tools:
 proto: install-tools
 	@echo "Generating protobuf files for tests..."
 	@if [ -f tests/testdata/complex.proto ]; then \
+		mkdir -p pkg/testproto && \
 		export PATH=$$PATH:$$HOME/go/bin && protoc --proto_path=tests/testdata \
 			--go_out=. --go_opt=paths=source_relative \
 			--go-grpc_out=. --go-grpc_opt=paths=source_relative \
-			tests/testdata/*.proto; \
+			tests/testdata/*.proto && \
+		echo "Moving generated files to pkg/testproto..." && \
+		find . -maxdepth 1 -name "complex*.pb.go" -exec mv {} pkg/testproto/ \; && \
+		echo "Syncing module dependencies..." && \
+		go mod tidy; \
 	else \
 		echo "No protobuf files found in tests/testdata"; \
 	fi
-	@echo "Syncing module dependencies..."
-	go mod tidy
 
 # Generate code
 generate:
