@@ -1,0 +1,66 @@
+# Build artifacts
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go workspace
+vendor/
+.vendor-new/
+
+# Test files
+coverage.out
+*.cover
+*.prof
+
+# Git
+.git/
+.gitignore
+.github/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation (not needed in runtime)
+*.md
+!README.md
+docs/
+
+# CI/CD
+.travis.yml
+.gitlab-ci.yml
+
+# Docker files (avoid recursion)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Logs
+*.log
+logs/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Test data (optional, comment out if needed in container)
+# tests/
+# testdata/
+
+# Examples (keep proto files but exclude binaries)
+examples/**/build/
+examples/**/*.exe
+

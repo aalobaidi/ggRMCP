@@ -1,0 +1,84 @@
+# Docker Compose configuration for ggRMCP Gateway
+# This file provides a complete development and testing environment
+
+
+services:
+  # Example gRPC service (Hello Service)
+  hello-service:
+    build:
+      context: ./examples/hello-service
+      dockerfile: Dockerfile
+    container_name: ggrmcp-hello-service
+    ports:
+      - "50051:50051"
+    environment:
+      - PORT=50051
+    # Share descriptor files with gateway via named volume
+    volumes:
+      - descriptor-cache:/app/descriptors
+    networks:
+      - grpc-net
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "50051"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ggRMCP Gateway
+  ggrmcp-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${VERSION:-latest}
+    container_name: ggrmcp-gateway
+    ports:
+      - "50053:50053"
+    environment:
+      # gRPC backend configuration
+      - GRPC_HOST=hello-service
+      - GRPC_PORT=50051
+      # Gateway configuration
+      - HTTP_PORT=50053
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DEV_MODE=${DEV_MODE:-false}
+      # FileDescriptorSet configuration (shared from hello-service)
+      - DESCRIPTOR_PATH=/app/descriptors/hello.binpb
+    # Mount shared descriptor volume from hello-service (read-only)
+    volumes:
+      - descriptor-cache:/app/descriptors:ro
+    networks:
+      - grpc-net
+    depends_on:
+      hello-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:50053/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  grpc-net:
+    driver: bridge
+    name: ggrmcp-network
+
+# Named volume for sharing FileDescriptorSet files between services
+volumes:
+  descriptor-cache:
+    driver: local
+

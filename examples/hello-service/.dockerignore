@@ -1,0 +1,17 @@
+# Ignore generated protobuf files (will be generated in Docker)
+proto/*.pb.go
+
+# Build artifacts
+build/
+*.exe
+*.test
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS files
+.DS_Store
+

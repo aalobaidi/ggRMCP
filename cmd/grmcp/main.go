@@ -82,7 +82,7 @@ func setupRouter(handler *server.Handler) *mux.Router {
 	router.HandleFunc("/", handler.ServeHTTP).Methods("GET", "POST", "OPTIONS")
 
 	// Health check endpoint
-	router.HandleFunc("/health", handler.HealthHandler).Methods("GET")
+	router.HandleFunc("/health", handler.HealthHandler).Methods("GET", "HEAD")
 
 	// Metrics endpoint
 	router.HandleFunc("/metrics", handler.MetricsHandler).Methods("GET")
